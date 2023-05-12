@@ -441,11 +441,11 @@ void CustomController::processObservation()
     {
         if (is_on_robot_)
         {
-            state_cur_(data_idx) = q_dot_lpf_(i);
+            state_cur_(data_idx) = q_vel_noise_(i);
         }
         else
         {
-            state_cur_(data_idx) = q_dot_lpf_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
+            state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
         }
         data_idx++;
     }
