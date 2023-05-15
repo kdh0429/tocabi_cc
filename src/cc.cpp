@@ -463,11 +463,11 @@ void CustomController::processObservation()
     state_cur_(data_idx) = target_vel_y_;
     data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.LF_FT(2);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.LF_FT(2);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.RF_FT(2);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.RF_FT(2);
+    // data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
@@ -588,7 +588,7 @@ void CustomController::computeSlow()
              rd_.torque_desired = torque_rl_;
         }
 
-        if (value_ < 0.0)
+        if (value_ < 50.0)
         {
             if (stop_by_value_thres_ == false)
             {
