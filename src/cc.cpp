@@ -463,11 +463,11 @@ void CustomController::processObservation()
     state_cur_(data_idx) = target_vel_y_;
     data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.LF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.LF_FT(2);
+    data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.RF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.RF_FT(2);
+    data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
