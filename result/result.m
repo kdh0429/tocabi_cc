@@ -31,6 +31,7 @@ plot(d3(:,1),d3(:,12))
 clear d
 d = load('data.csv');
 
+figure()
 yyaxis left
 plot(d(:,1),d(:,206), 'LineWidth', 7)
 ylabel('Value','FontSize', 40, 'FontWeight','bold')
