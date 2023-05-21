@@ -45,6 +45,7 @@ xlabel('Time(s)','FontSize', 14, 'FontWeight','bold')
 legend('Value','Stopped','FontSize', 50, 'FontWeight','bold')
 grid on
 ax = gca;
+
 ax.GridColor = [0 0 0];
 ax.GridLineStyle = '-';
 ax.GridAlpha = 0.5;
