@@ -450,14 +450,14 @@ void CustomController::processObservation()
         data_idx++;
     }
 
-    float squat_duration = 1.7995;
+    float squat_duration = 0.7992;
     phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
     state_cur_(data_idx) = sin(2*M_PI*phase_);
     data_idx++;
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
 
-    state_cur_(data_idx) = 0.2;//target_vel_x_;
+    state_cur_(data_idx) = 0.5;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = target_vel_y_;
