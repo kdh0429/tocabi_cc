@@ -41,7 +41,7 @@ void CustomController::loadNetwork()
     {
         cur_path = "/home/dyros/catkin_ws/src/tocabi_cc/";
     }
-    std::ifstream file[15];
+    std::ifstream file[14];
     file[0].open(cur_path+"weight/mlp_extractor_policy_net_0_weight.txt", std::ios::in);
     file[1].open(cur_path+"weight/mlp_extractor_policy_net_0_bias.txt", std::ios::in);
     file[2].open(cur_path+"weight/mlp_extractor_policy_net_2_weight.txt", std::ios::in);
@@ -57,7 +57,6 @@ void CustomController::loadNetwork()
     file[12].open(cur_path+"weight/value_net_weight.txt", std::ios::in);
     file[13].open(cur_path+"weight/value_net_bias.txt", std::ios::in);
 
-    file[14].open(cur_path+"motion/processed_data_tocabi_walk_with_upper.txt", std::ios::in);
 
     if(!file[0].is_open())
     {
@@ -289,22 +288,6 @@ void CustomController::loadNetwork()
                 row ++;
             }
         }
-    }    
-    row = 0;
-    col = 0;
-    while(!file[14].eof() && row != ref_motion_.rows())
-    {
-        file[14] >> temp;
-        if(temp != '\n')
-        {
-            ref_motion_(row, col) = temp;
-            col ++;
-            if (col == ref_motion_.cols())
-            {
-                col = 0;
-                row ++;
-            }
-        }
     }
 }
 
@@ -319,8 +302,6 @@ void CustomController::initVariable()
     hidden_layer1_.resize(num_hidden, 1);
     hidden_layer2_.resize(num_hidden, 1);
     rl_action_.resize(num_action, 1);
-
-    ref_motion_.resize(num_ref_motion, MODEL_DOF+1);
 
     value_net_w0_.resize(num_hidden, num_state);
     value_net_b0_.resize(num_hidden, 1);
@@ -589,18 +570,9 @@ void CustomController::computeSlow()
         {
             torque_rl_(i) = DyrosMath::minmax_cut(rl_action_(i)*torque_bound_(i), -torque_bound_(i), torque_bound_(i));
         }
-        double mocap_cycle_dt = 0.0005;
-        double mocap_cycle_period = (num_ref_motion-1) * mocap_cycle_dt;
-        double local_time = fmod((rd_cc_.control_time_us_ - start_time_)/1.0e6 +action_dt_accumulate_, mocap_cycle_period); 
-        int mocap_data_idx = int(local_time/ mocap_cycle_dt) % (num_ref_motion-1);
-
-        Eigen::Matrix<double, MODEL_DOF, 1> q_cubic;
-        q_cubic.setZero();
-
         for (int i = num_actuator_action; i < MODEL_DOF; i++)
         {
-            q_cubic(i) =  DyrosMath::cubic(local_time, ref_motion_(mocap_data_idx,0), ref_motion_(mocap_data_idx+1,0), ref_motion_(mocap_data_idx,1+i), ref_motion_(mocap_data_idx+1,1+i), 0.0, 0.0);
-            torque_rl_(i) = kp_(i,i) * (q_cubic(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
+            torque_rl_(i) = kp_(i,i) * (q_init_(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
         }
         
         if (rd_cc_.control_time_us_ < start_time_ + 0.2e6)
@@ -657,44 +629,6 @@ void CustomController::computeSlow()
                 time_write_pre_ = rd_cc_.control_time_us_;
             }
         }
-    }
-
-    if (rd_cc_.tc_.mode == 8)
-    {
-        if (rd_cc_.tc_init)
-        {
-            //Initialize settings for Task Control! 
-
-            start_time_ = rd_cc_.control_time_us_;
-            q_noise_pre_ = q_noise_ = q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-            time_cur_ = start_time_ / 1e6;
-            time_pre_ = time_cur_ - 0.005;
-            
-            rd_.tc_init = false;
-            std::cout<<"cc mode 8"<<std::endl;
-        } 
-
-        processNoise();
-
-        Eigen::Matrix<double, MODEL_DOF, 1> q_target;
-        Eigen::Matrix<double, MODEL_DOF, 1> q_cubic;
-
-        q_target << 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
-                        0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
-                        0.0, 0.0, 0.0,
-                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                        0.0, 0.0, 
-                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-        q_target.block(12, 0, MODEL_DOF-12, 1) = ref_motion_.block(0, 12+1, 1, MODEL_DOF-12).transpose();
-
-        q_cubic = q_target;
-        for (int i = 0; i <MODEL_DOF; i++)
-        {
-            q_cubic(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 2.0e6, q_init_(i), q_target(i), 0.0, 0.0);
-
-            torque_spline_(i) = kp_(i,i) * (q_cubic(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
-        }
-        rd_.torque_desired = torque_spline_;
 
     }
 }
