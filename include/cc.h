@@ -39,8 +39,6 @@ public:
     static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
     static const int num_hidden = 256;
 
-    static const int num_ref_motion = 3600;
-
     Eigen::MatrixXd policy_net_w0_;
     Eigen::MatrixXd policy_net_b0_;
     Eigen::MatrixXd policy_net_w2_;
@@ -64,8 +62,6 @@ public:
     bool stop_by_value_thres_ = false;
     Eigen::Matrix<double, MODEL_DOF, 1> q_stop_;
     float stop_start_time_;
-    
-    Eigen::MatrixXd ref_motion_;
     
     Eigen::MatrixXd state_;
     Eigen::MatrixXd state_cur_;
