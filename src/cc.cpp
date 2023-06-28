@@ -330,9 +330,9 @@ void CustomController::initVariable()
     q_init_ << 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
                 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
                 0.0, 0.0, 0.0,
-                0.3, 0.3, 1.5, -1.27, -1.0, 0.0, -1.0, 0.0,
+                0.3, 0.3, 1.57, -1.57, -1.0, 0.0, 0.0, 0.0,
                 0.0, 0.0,
-                -0.3, -0.3, -1.5, 1.27, 1.0, 0.0, 1.0, 0.0;
+                -0.3, -0.3, -1.57, 1.57, 1.0, 0.0, 0.0, 0.0;
 
     kp_.setZero();
     kv_.setZero();
@@ -348,6 +348,17 @@ void CustomController::initVariable()
                         10.0, 28.0, 10.0, 10.0, 10.0, 10.0, 3.0, 3.0,
                         2.0, 2.0,
                         10.0, 28.0, 10.0, 10.0, 10.0, 10.0, 3.0, 3.0;
+
+    use_joint_idx_.resize(num_actuator_action);
+    not_use_joint_idx_.resize(MODEL_DOF - num_actuator_action);
+    use_joint_idx_ << 0,1,2,3,4,5,
+                    6,7,8,9,10,11,
+                    12,13,14,
+                    15,16,19,
+                    25,26,29;
+    not_use_joint_idx_ << 17, 18, 20, 21, 22,
+                        23, 24,
+                        27, 28, 30, 31, 32;
 }
 
 Eigen::Vector3d CustomController::mat2euler(Eigen::Matrix3d mat)
@@ -433,7 +444,7 @@ void CustomController::processObservation()
 
     for (int i = 0; i < num_actuator_action; i++)
     {
-        state_cur_(data_idx) = q_noise_(i);
+        state_cur_(data_idx) = q_noise_(use_joint_idx_(i));
         data_idx++;
     }
 
@@ -441,11 +452,11 @@ void CustomController::processObservation()
     {
         if (is_on_robot_)
         {
-            state_cur_(data_idx) = q_vel_noise_(i);
+            state_cur_(data_idx) = q_vel_noise_(use_joint_idx_(i));
         }
         else
         {
-            state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
+            state_cur_(data_idx) = q_vel_noise_(use_joint_idx_(i)); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
         }
         data_idx++;
     }
@@ -568,11 +579,13 @@ void CustomController::computeSlow()
 
         for (int i = 0; i < num_actuator_action; i++)
         {
-            torque_rl_(i) = DyrosMath::minmax_cut(rl_action_(i)*torque_bound_(i), -torque_bound_(i), torque_bound_(i));
+            int idx = use_joint_idx_(i);
+            torque_rl_(idx) = DyrosMath::minmax_cut(rl_action_(i)*torque_bound_(idx), -torque_bound_(idx), torque_bound_(idx));
         }
-        for (int i = num_actuator_action; i < MODEL_DOF; i++)
+        for (int i = 0; i < MODEL_DOF - num_actuator_action; i++)
         {
-            torque_rl_(i) = kp_(i,i) * (q_init_(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
+            int idx = not_use_joint_idx_(i);
+            torque_rl_(idx) = kp_(idx,idx) * (q_init_(idx) - q_noise_(idx)) - kv_(idx,idx)*q_vel_noise_(idx);
         }
         
         if (rd_cc_.control_time_us_ < start_time_ + 0.2e6)
@@ -629,6 +642,42 @@ void CustomController::computeSlow()
                 time_write_pre_ = rd_cc_.control_time_us_;
             }
         }
+    }    
+    if (rd_cc_.tc_.mode == 8)
+    {
+        if (rd_cc_.tc_init)
+        {
+            //Initialize settings for Task Control! 
+
+            start_time_ = rd_cc_.control_time_us_;
+            q_noise_pre_ = q_noise_ = q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
+            time_cur_ = start_time_ / 1e6;
+            time_pre_ = time_cur_ - 0.005;
+            
+            rd_.tc_init = false;
+            std::cout<<"cc mode 8"<<std::endl;
+        } 
+
+        processNoise();
+
+        Eigen::Matrix<double, MODEL_DOF, 1> q_target;
+        Eigen::Matrix<double, MODEL_DOF, 1> q_cubic;
+
+        q_target << 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
+                        0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
+                        -0.01951709,  0.00260581, 0.03211151,
+                        0.17269775,  0.13346429,  1.57079633, -1.57079633, -0.10916492,  0.,          0.,     0.,  
+                        0., 0.,
+                        0.16199192,  0.07573052, -1.57079633,  1.57079633,  0.38756533, -0.,         -0.,         -0.;        
+
+        q_cubic = q_target;
+        for (int i = 0; i <MODEL_DOF; i++)
+        {
+            q_cubic(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 2.0e6, q_init_(i), q_target(i), 0.0, 0.0);
+
+            torque_spline_(i) = kp_(i,i) * (q_cubic(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
+        }
+        rd_.torque_desired = torque_spline_;
 
     }
 }
