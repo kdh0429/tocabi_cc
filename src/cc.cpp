@@ -573,7 +573,7 @@ void CustomController::computeSlow()
             processObservation();
             feedforwardPolicy();
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*2/250.0, 0.0, 2/250.0);
             time_inference_pre_ = rd_cc_.control_time_us_;
         }
 
