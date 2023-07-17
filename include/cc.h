@@ -30,10 +30,10 @@ public:
     void initVariable();
     Eigen::Vector3d mat2euler(Eigen::Matrix3d mat);
 
-    static const int num_action = 22;
-    static const int num_actuator_action = 21;
-    static const int num_cur_state = 71;
-    static const int num_cur_internal_state = 49;
+    static const int num_action = 13;
+    static const int num_actuator_action = 12;
+    static const int num_cur_state = 44;
+    static const int num_cur_internal_state = 31;
     static const int num_state_skip = 2;
     static const int num_state_hist = 5;
     static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
@@ -89,9 +89,6 @@ public:
 
     Eigen::Matrix<double, MODEL_DOF, MODEL_DOF> kp_;
     Eigen::Matrix<double, MODEL_DOF, MODEL_DOF> kv_;
-
-    Eigen::VectorXi use_joint_idx_;
-    Eigen::VectorXi not_use_joint_idx_;
 
     float start_time_;
     float time_inference_pre_ = 0.0;
