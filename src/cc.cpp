@@ -490,6 +490,7 @@ void CustomController::processObservation()
     {
         state_.block(num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
     }
+    std::cout <<"State: " << state_.transpose() << std::endl;
 
 }
 
@@ -548,10 +549,11 @@ void CustomController::computeSlow()
 
             processNoise();
             processObservation();
-            for (int i = 0; i < num_state_skip*num_state_hist; i++) 
-            {
-                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
-            }
+            // for (int i = 0; i < num_state_skip*num_state_hist; i++) 
+            // {
+                state_buffer_.setZero();
+                state_.setZero();
+            // }
         }
 
         processNoise();
@@ -588,20 +590,20 @@ void CustomController::computeSlow()
              rd_.torque_desired = torque_rl_;
         }
 
-        if (value_ < 50.0)
-        {
-            if (stop_by_value_thres_ == false)
-            {
-                stop_by_value_thres_ = true;
-                stop_start_time_ = rd_cc_.control_time_us_;
-                q_stop_ = q_noise_;
-                std::cout << "Stop by Value Function" << std::endl;
-            }
-        }
-        if (stop_by_value_thres_)
-        {
-            rd_.torque_desired = kp_ * (q_stop_ - q_noise_) - kv_*q_vel_noise_;
-        }
+        // if (value_ < 50.0)
+        // {
+        //     if (stop_by_value_thres_ == false)
+        //     {
+        //         stop_by_value_thres_ = true;
+        //         stop_start_time_ = rd_cc_.control_time_us_;
+        //         q_stop_ = q_noise_;
+        //         std::cout << "Stop by Value Function" << std::endl;
+        //     }
+        // }
+        // if (stop_by_value_thres_)
+        // {
+        //     rd_.torque_desired = kp_ * (q_stop_ - q_noise_) - kv_*q_vel_noise_;
+        // }
 
         if (is_write_file_)
         {
