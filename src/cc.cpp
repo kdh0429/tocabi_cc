@@ -437,18 +437,18 @@ void CustomController::processObservation()
         data_idx++;
     }
 
-    // for (int i = 0; i < num_actuator_action; i++)
-    // {
-    //     if (is_on_robot_)
-    //     {
-    //         state_cur_(data_idx) = q_vel_noise_(i);
-    //     }
-    //     else
-    //     {
-    //         state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
-    //     }
-    //     data_idx++;
-    // }
+    for (int i = 0; i < num_actuator_action; i++)
+    {
+        if (is_on_robot_)
+        {
+            state_cur_(data_idx) = q_vel_noise_(i);
+        }
+        else
+        {
+            state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
+        }
+        data_idx++;
+    }
 
     float squat_duration = 1.7995;
     phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
