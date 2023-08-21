@@ -457,17 +457,17 @@ void CustomController::processObservation()
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
 
-    state_cur_(data_idx) = 0.0;//target_vel_x_;
+    state_cur_(data_idx) = 0.2;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
     data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.LF_FT(2) / (ft_left_init_ + ft_right_init_);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.LF_FT(2) / (ft_left_init_ + ft_right_init_);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.RF_FT(2) / (ft_left_init_ + ft_right_init_);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.RF_FT(2) / (ft_left_init_ + ft_right_init_);
+    // data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
@@ -541,8 +541,8 @@ void CustomController::computeSlow()
             q_noise_pre_ = q_noise_ = q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
             time_cur_ = start_time_ / 1e6;
             time_pre_ = time_cur_ - 0.005;
-            ft_left_init_ = abs(rd_cc_.LF_FT(2));
-            ft_right_init_ = abs(rd_cc_.RF_FT(2));
+            // ft_left_init_ = abs(rd_cc_.LF_FT(2));
+            // ft_right_init_ = abs(rd_cc_.RF_FT(2));
 
             rd_.tc_init = false;
             std::cout<<"cc mode 7"<<std::endl;
