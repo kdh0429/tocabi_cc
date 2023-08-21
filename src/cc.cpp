@@ -42,20 +42,20 @@ void CustomController::loadNetwork()
         cur_path = "/home/dyros/catkin_ws/src/tocabi_cc/";
     }
     std::ifstream file[14];
-    file[0].open(cur_path+"weight/mlp_extractor_policy_net_0_weight.txt", std::ios::in);
-    file[1].open(cur_path+"weight/mlp_extractor_policy_net_0_bias.txt", std::ios::in);
-    file[2].open(cur_path+"weight/mlp_extractor_policy_net_2_weight.txt", std::ios::in);
-    file[3].open(cur_path+"weight/mlp_extractor_policy_net_2_bias.txt", std::ios::in);
-    file[4].open(cur_path+"weight/action_net_weight.txt", std::ios::in);
-    file[5].open(cur_path+"weight/action_net_bias.txt", std::ios::in);
+    file[0].open(cur_path+"weight/actor_mlp_0_weight.txt", std::ios::in);
+    file[1].open(cur_path+"weight/actor_mlp_0_bias.txt", std::ios::in);
+    file[2].open(cur_path+"weight/actor_mlp_2_weight.txt", std::ios::in);
+    file[3].open(cur_path+"weight/actor_mlp_2_bias.txt", std::ios::in);
+    file[4].open(cur_path+"weight/mu_weight.txt", std::ios::in);
+    file[5].open(cur_path+"weight/mu_bias.txt", std::ios::in);
     file[6].open(cur_path+"weight/obs_mean_fixed.txt", std::ios::in);
     file[7].open(cur_path+"weight/obs_variance_fixed.txt", std::ios::in);
-    file[8].open(cur_path+"weight/mlp_extractor_value_net_0_weight.txt", std::ios::in);
-    file[9].open(cur_path+"weight/mlp_extractor_value_net_0_bias.txt", std::ios::in);
-    file[10].open(cur_path+"weight/mlp_extractor_value_net_2_weight.txt", std::ios::in);
-    file[11].open(cur_path+"weight/mlp_extractor_value_net_2_bias.txt", std::ios::in);
-    file[12].open(cur_path+"weight/value_net_weight.txt", std::ios::in);
-    file[13].open(cur_path+"weight/value_net_bias.txt", std::ios::in);
+    file[8].open(cur_path+"weight/critic_mlp_0_weight.txt", std::ios::in);
+    file[9].open(cur_path+"weight/critic_mlp_0_bias.txt", std::ios::in);
+    file[10].open(cur_path+"weight/critic_mlp_2_weight.txt", std::ios::in);
+    file[11].open(cur_path+"weight/critic_mlp_2_bias.txt", std::ios::in);
+    file[12].open(cur_path+"weight/value_weight.txt", std::ios::in);
+    file[13].open(cur_path+"weight/value_bias.txt", std::ios::in);
 
 
     if(!file[0].is_open())
@@ -490,7 +490,6 @@ void CustomController::processObservation()
     {
         state_.block(num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
     }
-    std::cout <<"State: " << state_.transpose() << std::endl;
 
 }
 
@@ -559,12 +558,12 @@ void CustomController::computeSlow()
         processNoise();
 
         // processObservation and feedforwardPolicy mean time: 15 us, max 53 us
-        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 > 1/250.0)
+        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 > 1/100.0)
         {
             processObservation();
             feedforwardPolicy();
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/100.0, 0.0, 1/100.0);
             time_inference_pre_ = rd_cc_.control_time_us_;
         }
 
@@ -581,7 +580,15 @@ void CustomController::computeSlow()
         {
             for (int i = 0; i <MODEL_DOF; i++)
             {
-                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 0.2e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
+                torque_init_ = kp_ * (q_init_ - q_noise_) - kv_*q_vel_noise_;
+            }
+            rd_.torque_desired = torque_init_;
+        }
+        else if (rd_cc_.control_time_us_ < start_time_ + 0.4e6)
+        {
+            for (int i = 0; i <MODEL_DOF; i++)
+            {
+                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_ + 0.2e6, start_time_ + 0.4e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
             }
             rd_.torque_desired = torque_spline_;
         }
