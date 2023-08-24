@@ -577,11 +577,11 @@ void CustomController::computeSlow()
             torque_rl_(i) = kp_(i,i) * (q_init_(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
         }
         
-        if (rd_cc_.control_time_us_ < start_time_ + 0.2e6)
+        if (rd_cc_.control_time_us_ < start_time_ + 0.1e6)
         {
             for (int i = 0; i <MODEL_DOF; i++)
             {
-                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 0.2e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
+                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 0.1e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
             }
             rd_.torque_desired = torque_spline_;
         }
