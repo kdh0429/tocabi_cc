@@ -25,17 +25,20 @@ public:
     //////////////////////////////////////////// Donghyeon RL /////////////////////////////////////////
     void processNoise();
     void initVariable();
-    void moveStretchPose(float traj_start_time, float traj_duration, Eigen::Matrix<double, MODEL_DOF, 1> q_init);
+    void movePose(float traj_start_time, float traj_duration, Eigen::Matrix<double, MODEL_DOF, 1> q_init, Eigen::Matrix<double, MODEL_DOF, 1> q_target);
 
-    std::ofstream writeFile;
+    std::ofstream writeFile[12];
 
     bool is_on_robot_ = false;
     bool is_write_file_ = true;
 
     Eigen::Matrix<double, MODEL_DOF, 1> q_init_;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_init_1_;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_stretch_;
     Eigen::Matrix<double, MODEL_DOF, 1> q_noise_;
     Eigen::Matrix<double, MODEL_DOF, 1> q_noise_pre_;
     Eigen::Matrix<double, MODEL_DOF, 1> q_vel_noise_;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_cubic;
 
     Eigen::Matrix<double, MODEL_DOF, 1> torque_init_;
     Eigen::Matrix<double, MODEL_DOF, 1> torque_spline_;
@@ -51,7 +54,10 @@ public:
     double time_pre_;
 
     int inspect_joint_idx_ = 0;
-    float inspect_torque_;
+
+
+    Eigen::Matrix<double, MODEL_DOF, 1> q_inspect_upper_;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_inspect_lower_;
 
     float inspect_time_;
     float inspect_joint_finish_time_;
@@ -59,6 +65,8 @@ public:
     float torque_change_interval_ = 1.0;
     float torque_increment_ = 0.05;
     float q_dot_threshold_ = 0.05;
+
+    bool inspect_on_ = false;
 
 private:
     Eigen::VectorQd ControlVal_;
