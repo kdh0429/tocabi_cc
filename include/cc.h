@@ -29,7 +29,7 @@ public:
 
     std::ofstream writeFile[12];
 
-    bool is_on_robot_ = true;
+    bool is_on_robot_ = false;
     bool is_write_file_ = true;
 
     Eigen::Matrix<double, MODEL_DOF, 1> q_init_;
