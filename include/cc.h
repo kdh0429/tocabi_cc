@@ -30,9 +30,9 @@ public:
     void initVariable();
     Eigen::Vector3d mat2euler(Eigen::Matrix3d mat);
 
-    static const int num_action = 13;
+    static const int num_action = 12;
     static const int num_actuator_action = 12;
-    static const int num_cur_state = 44;
+    static const int num_cur_state = 43;
     static const int num_cur_internal_state = 31;
     static const int num_state_skip = 2;
     static const int num_state_hist = 5;
@@ -96,7 +96,7 @@ public:
 
     double time_cur_;
     double time_pre_;
-    double action_dt_accumulate_ = 0.953;
+    double action_dt_accumulate_ = 0.0;
 
     Eigen::Vector3d euler_angle_;
 

@@ -450,14 +450,22 @@ void CustomController::processObservation()
         data_idx++;
     }
 
-    float squat_duration = 1.7995;
-    phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
+    // float squat_duration = 1.7995;
+    // phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
+
+    float target_vel_x_ = 0.8;
+    float mocap_cycle_dt = -abs(target_vel_x_/0.8)*0.0005*4.0/9.0 + 0.0005;
+    float mocap_cycle_period = 3599 * mocap_cycle_dt;
+            
+    phase_ += ((rd_cc_.control_time_us_ - time_inference_pre_) / 1.0e6  / mocap_cycle_period);
+    phase_ = std::fmod(phase_, 1.0);
+
     state_cur_(data_idx) = sin(2*M_PI*phase_);
     data_idx++;
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
 
-    state_cur_(data_idx) = 0.5;//target_vel_x_;
+    state_cur_(data_idx) = 0.8;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
@@ -474,8 +482,8 @@ void CustomController::processObservation()
         state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(i), -1.0, 1.0);
         data_idx++;
     }
-    state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(num_actuator_action), 0.0, 1.0);
-    data_idx++;
+    // state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(num_actuator_action), 0.0, 1.0);
+    // data_idx++;
     
     state_buffer_.block(0, 0, num_cur_state*(num_state_skip*num_state_hist-1),1) = state_buffer_.block(num_cur_state, 0, num_cur_state*(num_state_skip*num_state_hist-1),1);
     state_buffer_.block(num_cur_state*(num_state_skip*num_state_hist-1), 0, num_cur_state,1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
@@ -541,6 +549,7 @@ void CustomController::computeSlow()
             q_noise_pre_ = q_noise_ = q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
             time_cur_ = start_time_ / 1e6;
             time_pre_ = time_cur_ - 0.005;
+            time_inference_pre_ = rd_cc_.control_time_us_ - (1/249.9)*1e6;
             // ft_left_init_ = abs(rd_cc_.LF_FT(2));
             // ft_right_init_ = abs(rd_cc_.RF_FT(2));
 
@@ -559,12 +568,12 @@ void CustomController::computeSlow()
         processNoise();
 
         // processObservation and feedforwardPolicy mean time: 15 us, max 53 us
-        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 > 1/250.0)
+        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 >= 1/250.0)
         {
             processObservation();
             feedforwardPolicy();
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            // action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
             time_inference_pre_ = rd_cc_.control_time_us_;
         }
 
