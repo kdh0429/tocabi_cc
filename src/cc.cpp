@@ -111,8 +111,6 @@ void CustomController::computeSlow()
         if (rd_cc_.control_time_us_ < start_time_ + 4.0e6)
         {
             movePose(start_time_/ 1e6, 4.0, q_init_, q_stretch_);
-            torque_spline_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
-            rd_.torque_desired = torque_spline_;
 
             inspect_joint_finish_time_ = rd_cc_.control_time_us_/1e6;
             q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
@@ -206,21 +204,22 @@ void CustomController::computeSlow()
                     }
 
                 }
-
-                torque_spline_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
-                rd_.torque_desired = torque_spline_;
             }
             else
             {
                 inspect_on_ = false;
-                Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                q_target = q_init_;
+                q_cubic = q_init_;
                 for (int i=0; i<12; i++) {
-                    q_target(i) = 0.0;
+                    q_cubic(i) = 0.0;
                 }
-                rd_.torque_desired = kp_ * (q_target - q_noise_) - kv_*q_vel_noise_;
             }
         }
+
+        torque_spline_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
+        torque_buffer_.block(0,0,MODEL_DOF,14) = torque_buffer_.block(0,1,MODEL_DOF,14);
+        torque_buffer_.block(0,14,MODEL_DOF,1) = torque_spline_;
+        
+        rd_.torque_desired = torque_buffer_.block(0,6,MODEL_DOF,1);
 
 
         if (is_write_file_ && inspect_on_)

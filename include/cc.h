@@ -59,6 +59,9 @@ public:
     Eigen::Matrix<double, MODEL_DOF, 1> q_inspect_upper_;
     Eigen::Matrix<double, MODEL_DOF, 1> q_inspect_lower_;
 
+
+    Eigen::Matrix<double, MODEL_DOF, 15> torque_buffer_;
+
     float inspect_time_;
     float inspect_joint_finish_time_;
     float inspect_torque_change_time_;
