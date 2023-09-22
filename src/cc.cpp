@@ -450,22 +450,15 @@ void CustomController::processObservation()
         data_idx++;
     }
 
-    // float squat_duration = 1.7995;
-    // phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
-
-    float target_vel_x_ = 0.8;
-    float mocap_cycle_dt = -abs(target_vel_x_/0.8)*0.0005*4.0/9.0 + 0.0005;
-    float mocap_cycle_period = 3599 * mocap_cycle_dt;
-            
-    phase_ += ((rd_cc_.control_time_us_ - time_inference_pre_) / 1.0e6  / mocap_cycle_period);
-    phase_ = std::fmod(phase_, 1.0);
+    float squat_duration = 1.7995;
+    phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
 
     state_cur_(data_idx) = sin(2*M_PI*phase_);
     data_idx++;
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
 
-    state_cur_(data_idx) = 0.8;//target_vel_x_;
+    state_cur_(data_idx) = 0.2;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
@@ -573,7 +566,7 @@ void CustomController::computeSlow()
             processObservation();
             feedforwardPolicy();
             
-            // action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
 
             if (value_ < 50.0)
             {
