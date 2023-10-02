@@ -561,7 +561,7 @@ void CustomController::computeSlow()
         processNoise();
 
         // processObservation and feedforwardPolicy mean time: 15 us, max 53 us
-        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 >= 1/250.0 - FLT_EPSILON)
+        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 >= 1/250.0 - 1/10000.0)
         {
             processObservation();
             feedforwardPolicy();
