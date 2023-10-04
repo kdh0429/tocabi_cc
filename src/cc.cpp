@@ -614,7 +614,6 @@ void CustomController::computeSlow()
         {
             torque_rl_(i) = kp_(i,i) * (q_init_(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
         }
-        torque_rl_ = 0.8*torque_rl_;
         
         if (rd_cc_.control_time_us_ < start_time_ + 0.1e6)
         {
