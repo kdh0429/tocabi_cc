@@ -464,11 +464,11 @@ void CustomController::processObservation()
     state_cur_(data_idx) = 0.0;//target_vel_y_;
     data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.LF_FT(2) / (ft_left_init_ + ft_right_init_);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.LF_FT(2);
+    data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.RF_FT(2) / (ft_left_init_ + ft_right_init_);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.RF_FT(2);
+    data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
@@ -614,6 +614,7 @@ void CustomController::computeSlow()
         {
             torque_rl_(i) = kp_(i,i) * (q_init_(i) - q_noise_(i)) - kv_(i,i)*q_vel_noise_(i);
         }
+        torque_rl_ = 0.8*torque_rl_;
         
         if (rd_cc_.control_time_us_ < start_time_ + 0.1e6)
         {
