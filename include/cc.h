@@ -30,13 +30,14 @@ public:
     void initVariable();
     Eigen::Vector3d mat2euler(Eigen::Matrix3d mat);
 
-    static const int num_cur_state = 30;
-    static const int num_state_skip = 1;
-    static const int num_state_hist = 1;
-    static const int num_state = num_cur_state*num_state_hist;
-    static const int num_hidden = 256;
     static const int num_action = 13;
     static const int num_actuator_action = 12;
+    static const int num_cur_state = 44;
+    static const int num_cur_internal_state = 31;
+    static const int num_state_skip = 1;
+    static const int num_state_hist = 10;
+    static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
+    static const int num_hidden = 256;
 
     Eigen::MatrixXd policy_net_w0_;
     Eigen::MatrixXd policy_net_b0_;
@@ -47,11 +48,24 @@ public:
     Eigen::MatrixXd hidden_layer1_;
     Eigen::MatrixXd hidden_layer2_;
     Eigen::MatrixXd rl_action_;
+
+    Eigen::MatrixXd value_net_w0_;
+    Eigen::MatrixXd value_net_b0_;
+    Eigen::MatrixXd value_net_w2_;
+    Eigen::MatrixXd value_net_b2_;
+    Eigen::MatrixXd value_net_w_;
+    Eigen::MatrixXd value_net_b_;
+    Eigen::MatrixXd value_hidden_layer1_;
+    Eigen::MatrixXd value_hidden_layer2_;
+    double value_;
+
+    bool stop_by_value_thres_ = false;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_stop_;
+    float stop_start_time_;
     
     Eigen::MatrixXd state_;
     Eigen::MatrixXd state_cur_;
     Eigen::MatrixXd state_buffer_;
-    Eigen::MatrixXd state_normalize_;
     Eigen::MatrixXd state_mean_;
     Eigen::MatrixXd state_var_;
 
@@ -92,7 +106,8 @@ public:
     void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
     ros::Subscriber joy_sub_;
 
-    double target_vel_ = 0.0;
+    double target_vel_x_ = 0.0;
+    double target_vel_y_ = 0.0;
 
 private:
     Eigen::VectorQd ControlVal_;
