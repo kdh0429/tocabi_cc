@@ -293,9 +293,9 @@ void CustomController::loadNetwork()
 
 void CustomController::initVariable()
 {    
-    policy_net_w0_.resize(num_hidden_1, num_state);
-    policy_net_b0_.resize(num_hidden_1, 1);
-    policy_net_w2_.resize(num_hidden, num_hidden_1);
+    policy_net_w0_.resize(num_hidden, num_state);
+    policy_net_b0_.resize(num_hidden, 1);
+    policy_net_w2_.resize(num_hidden, num_hidden);
     policy_net_b2_.resize(num_hidden, 1);
     action_net_w_.resize(num_action, num_hidden);
     action_net_b_.resize(num_action, 1);
@@ -509,7 +509,7 @@ void CustomController::processObservation()
 void CustomController::feedforwardPolicy()
 {
     hidden_layer1_ = policy_net_w0_ * state_ + policy_net_b0_;
-    for (int i = 0; i < num_hidden_1; i++) 
+    for (int i = 0; i < num_hidden; i++) 
     {
         if (hidden_layer1_(i) < 0)
             hidden_layer1_(i) = 0.0;

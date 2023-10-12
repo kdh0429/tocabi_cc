@@ -37,7 +37,6 @@ public:
     static const int num_state_skip = 2;
     static const int num_state_hist = 5;
     static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
-    static const int num_hidden_1 = 512;
     static const int num_hidden = 256;
 
     Eigen::MatrixXd policy_net_w0_;
