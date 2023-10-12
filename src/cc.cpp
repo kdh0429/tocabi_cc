@@ -10,20 +10,13 @@ CustomController::CustomController(RobotData &rd) : rd_(rd) //, wbc_(dc.wbc_)
     {
         if (is_on_robot_)
         {
-            for (int i = 0; i <12; i++)
-            {
-                writeFile[i].open("/home/dyros/catkin_ws/src/tocabi_cc/result/data_joint_"+to_string(i)+".csv", std::ofstream::out | std::ofstream::app);
-                writeFile[i] << std::fixed << std::setprecision(8);
-            }
+            writeFile.open("/home/dyros/catkin_ws/src/tocabi_cc/result/data.csv", std::ofstream::out | std::ofstream::app);
         }
         else
         {
-            for (int i = 0; i <12; i++)
-            {
-                writeFile[i].open("/home/kim/tocabi_ws/src/tocabi_cc/result/data_joint_"+to_string(i)+".csv", std::ofstream::out | std::ofstream::app);
-                writeFile[i] << std::fixed << std::setprecision(8);
-            }
+            writeFile.open("/home/kim/tocabi_ws/src/tocabi_cc/result/data.csv", std::ofstream::out | std::ofstream::app);
         }
+        writeFile << std::fixed << std::setprecision(8);
     }
     initVariable();
 }
@@ -41,9 +34,6 @@ void CustomController::initVariable()
                 0.3, 0.3, 1.5, -1.27, -1.0, 0.0, -1.0, 0.0,
                 0.0, 0.0,
                 -0.3, -0.3, -1.5, 1.27, 1.0, 0.0, 1.0, 0.0;
-    q_stretch_  = q_init_;
-    q_stretch_.head(12).setZero();    
-    q_cubic = q_init_;    
 
     kp_.setZero();
     kv_.setZero();
@@ -60,19 +50,7 @@ void CustomController::initVariable()
                         2.0, 2.0,
                         10.0, 28.0, 10.0, 10.0, 10.0, 10.0, 3.0, 3.0;
 
-    q_inspect_upper_ << 0.2, 0.0, 0.4, 0.6, 0.4, 0.3,
-                        0.2, 0.0, 0.4, 0.6, 0.4, -0.3,
-                        0.0, 0.0, 0.0,
-                        0.3, 0.3, 1.5, -1.27, -1.0, 0.0, -1.0, 0.0,
-                        0.0, 0.0,
-                        -0.3, -0.3, -1.5, 1.27, 1.0, 0.0, 1.0, 0.0;
-
-    q_inspect_lower_ << -0.2, 0.4, -0.4, 0.0, -0.4, -0.1,
-                        -0.2, -0.4, -0.4, 0.0, -0.4, 0.1,
-                        0.0, 0.0, 0.0,
-                        0.3, 0.3, 1.5, -1.27, -1.0, 0.0, -1.0, 0.0,
-                        0.0, 0.0,
-                        -0.3, -0.3, -1.5, 1.27, 1.0, 0.0, 1.0, 0.0;
+    torque_inspected_.setZero();
 }
 
 void CustomController::processNoise()
@@ -108,132 +86,80 @@ void CustomController::computeSlow()
 
         processNoise();
         
-        if (rd_cc_.control_time_us_ < start_time_ + 4.0e6)
+        if (rd_cc_.control_time_us_ < start_time_ + 2.0e6)
         {
-            movePose(start_time_/ 1e6, 4.0, q_init_, q_stretch_);
-            torque_spline_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
-            rd_.torque_desired = torque_spline_;
-
-            inspect_joint_finish_time_ = rd_cc_.control_time_us_/1e6;
-            q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
+            moveStretchPose(start_time_/ 1e6, 2.0, q_init_);
         }
         else
         {
-            if (inspect_joint_idx_ < 12)
+            if (inspect_joint_idx_ < 33)
             {
-                inspect_on_ = true;
-                // Move to Stretch Pose
                 if (rd_cc_.control_time_us_ / 1e6 < inspect_joint_finish_time_ + 2.0)
                 {
-                    movePose(inspect_joint_finish_time_, 2.0, q_init_1_, q_stretch_);
-                    q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
+                    moveStretchPose(inspect_joint_finish_time_, 2.0, q_init_);
                 }
                 else
                 {
                     inspect_time_ = rd_cc_.control_time_us_ / 1e6;
 
-                    // Move to upper limit
-                    if (inspect_time_ < inspect_joint_finish_time_ + 4.0)
+                    if (inspect_time_ - inspect_torque_change_time_ > torque_change_interval_)
                     {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_upper_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_+2.0, 2.0, q_init_, q_target);
-                        q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
+                        inspect_torque_ += torque_increment_;
+                        inspect_torque_change_time_ = inspect_time_;
+                        std::cout << "Inspect Joint: Joint " << inspect_joint_idx_ + 1 << ", Torque: " << inspect_torque_ << std::endl;
                     }
-                    // Move from upper limit to lower limit using cubic spline for 4 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 8.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_upper_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_+4.0, 4.0, q_init_1_, q_target);
-                        q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
+
+                    Eigen::Matrix<double, MODEL_DOF, 1> command_torque;
+                    Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
+                    q_target = q_init_;
+                    for (int i=0; i<33; i++) {
+                        q_target(i) = 0.0;
                     }
-                    // Move from lower limit to upper limit using cubic spline for 4 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 12.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_lower_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_ + 8.0, 4.0, q_init_, q_target);
-                        q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                    }
-                    // Move from upper limit to lower limit using cubic spline for 2 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 14.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_upper_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_ + 12.0, 2.0, q_init_1_, q_target);
-                        q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                    }
-                    // Move from lower limit to upper limit using cubic spline for 2 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 16.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_lower_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_ + 14.0, 2.0, q_init_, q_target);
-                        q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                    }
-                    // Move from upper limit to lower limit using cubic spline for 1 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 17.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_upper_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_ + 16.0, 1.0, q_init_1_, q_target);
-                        q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                    }
-                    // Move from lower limit to upper limit using cubic spline for 1 seconds
-                    else if (inspect_time_ < inspect_joint_finish_time_ + 18.0)
-                    {
-                        Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
-                        q_target = q_stretch_;
-                        q_target(inspect_joint_idx_) = q_inspect_lower_(inspect_joint_idx_);
-                        movePose(inspect_joint_finish_time_ + 17.0, 1.0, q_init_, q_target);
-                        q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                    }
-                    else
+                    q_target(17) = 1.57;
+                    q_target(27) = -1.57;
+                    command_torque = kp_ * (q_target - q_noise_) - kv_*q_vel_noise_;
+                    command_torque(inspect_joint_idx_) = inspect_torque_;
+                    
+                    if (abs(q_vel_noise_(inspect_joint_idx_)) > q_dot_threshold_)
                     {
                         inspect_joint_finish_time_ = inspect_time_;
                         q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                        q_init_1_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
-                        std::cout << "Joint " << inspect_joint_idx_ << " Finished!" << std::endl;
+                        torque_inspected_(inspect_joint_idx_) = inspect_torque_ - torque_increment_;
+                        std::cout << "Joint " << inspect_joint_idx_ + 1 << " Finished!" << std::endl;
+                        std::cout << "Result: " << torque_inspected_.transpose() << std::endl;
 
                         inspect_joint_idx_++;
+                        inspect_torque_ = 0.0;
                     }
 
+                    rd_.torque_desired = command_torque;
                 }
-
-                torque_spline_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
-                rd_.torque_desired = torque_spline_;
             }
             else
             {
-                inspect_on_ = false;
                 Eigen::Matrix<double, MODEL_DOF, 1> q_target; 
                 q_target = q_init_;
-                for (int i=0; i<12; i++) {
+                for (int i=0; i<33; i++) {
                     q_target(i) = 0.0;
                 }
+                q_target(17) = 1.57;
+                q_target(27) = -1.57;
                 rd_.torque_desired = kp_ * (q_target - q_noise_) - kv_*q_vel_noise_;
             }
         }
 
 
-        if (is_write_file_ && inspect_on_)
+        if (is_write_file_)
         {
             if ((rd_cc_.control_time_us_ - time_write_pre_)/1e6 > 1/240.0)
             {
-                writeFile[inspect_joint_idx_] << (rd_cc_.control_time_us_ - start_time_)/1e6 << "\t";
-                writeFile[inspect_joint_idx_]  << inspect_joint_idx_  << "\t";
-                writeFile[inspect_joint_idx_]  << q_noise_.transpose()  << "\t";
-                writeFile[inspect_joint_idx_]  << rd_.torque_desired.transpose()  << "\t";
-                writeFile[inspect_joint_idx_]  << q_vel_noise_.transpose()  << "\t";
+                writeFile << (rd_cc_.control_time_us_ - start_time_)/1e6 << "\t";
+                writeFile << inspect_joint_idx_  << "\t";
+                writeFile << inspect_torque_  << "\t";
+                writeFile << rd_.torque_desired.transpose()  << "\t";
+                writeFile << q_vel_noise_.transpose()  << "\t";
                
-                writeFile[inspect_joint_idx_]  << std::endl;
+                writeFile << std::endl;
 
                 time_write_pre_ = rd_cc_.control_time_us_;
             }
@@ -242,11 +168,25 @@ void CustomController::computeSlow()
     }
 }
 
-void CustomController::movePose(float traj_start_time, float traj_duration, Eigen::Matrix<double, MODEL_DOF, 1> q_init, Eigen::Matrix<double, MODEL_DOF, 1> q_target)
+void CustomController::moveStretchPose(float traj_start_time, float traj_duration, Eigen::Matrix<double, MODEL_DOF, 1> q_init)
 {
-    for (int i=0; i<12; i++) {
+    Eigen::Matrix<double, MODEL_DOF, 1> q_target;
+    Eigen::Matrix<double, MODEL_DOF, 1> q_cubic;
+
+    q_target = q_cubic = q_init;
+    for (int i=0; i<33; i++) {
+        q_target(i) = 0.0;
+    }
+    q_target(17) = 1.57;
+    q_target(27) = -1.57;
+
+    for (int i=0; i<33; i++) {
         q_cubic(i) = DyrosMath::cubic(rd_cc_.control_time_us_/1e6, traj_start_time, traj_start_time + traj_duration, q_init(i), q_target(i), 0.0, 0.0);;
     }
+
+    torque_stretch_ = kp_ * (q_cubic - q_noise_) - kv_*q_vel_noise_;
+
+    rd_.torque_desired = torque_stretch_;
 }
 
 void CustomController::computeFast()
