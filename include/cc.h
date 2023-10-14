@@ -32,8 +32,8 @@ public:
 
     static const int num_action = 22;
     static const int num_actuator_action = 21;
-    static const int num_cur_state = 71;
-    static const int num_cur_internal_state = 49;
+    static const int num_cur_state = 77;
+    static const int num_cur_internal_state = 55;
     static const int num_state_skip = 2;
     static const int num_state_hist = 5;
     static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);

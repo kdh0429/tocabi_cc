@@ -474,11 +474,23 @@ void CustomController::processObservation()
     state_cur_(data_idx) = 0.0;//target_vel_y_;
     data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.LF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.LF_FT(2);
+    data_idx++;
 
-    // state_cur_(data_idx) = rd_cc_.RF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = rd_cc_.RF_FT(2);
+    data_idx++;
+
+    state_cur_(data_idx) = rd_cc_.LF_FT(3);
+    data_idx++;
+
+    state_cur_(data_idx) = rd_cc_.RF_FT(3);
+    data_idx++;
+
+    state_cur_(data_idx) = rd_cc_.LF_FT(4);
+    data_idx++;
+
+    state_cur_(data_idx) = rd_cc_.RF_FT(4);
+    data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
@@ -552,6 +564,7 @@ void CustomController::computeSlow()
             q_noise_pre_ = q_noise_ = q_init_ = rd_cc_.q_virtual_.segment(6,MODEL_DOF);
             time_cur_ = start_time_ / 1e6;
             time_pre_ = time_cur_ - 0.005;
+            time_inference_pre_ = rd_cc_.control_time_us_ - (1/249.9)*1e6;
 
             rd_.tc_init = false;
             std::cout<<"cc mode 7"<<std::endl;
@@ -568,12 +581,48 @@ void CustomController::computeSlow()
         processNoise();
 
         // processObservation and feedforwardPolicy mean time: 15 us, max 53 us
-        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 > 1/250.0)
+        if ((rd_cc_.control_time_us_ - time_inference_pre_)/1.0e6 >= 1/250.0 - 1/10000.0)
         {
             processObservation();
             feedforwardPolicy();
             
             action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+
+            if (value_ < 50.0)
+            {
+                if (stop_by_value_thres_ == false)
+                {
+                    stop_by_value_thres_ = true;
+                    stop_start_time_ = rd_cc_.control_time_us_;
+                    q_stop_ = q_noise_;
+                    std::cout << "Stop by Value Function" << std::endl;
+                }
+            }
+
+            if (is_write_file_)
+            {
+                    writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
+                    writeFile << phase_ << "\t";
+                    writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0) << "\t";
+
+                    writeFile << rd_cc_.LF_FT.transpose() << "\t";
+                    writeFile << rd_cc_.RF_FT.transpose() << "\t";
+                    writeFile << rd_cc_.LF_CF_FT.transpose() << "\t";
+                    writeFile << rd_cc_.RF_CF_FT.transpose() << "\t";
+
+                    writeFile << rd_cc_.torque_desired.transpose()  << "\t";
+                    writeFile << q_noise_.transpose() << "\t";
+                    writeFile << q_dot_lpf_.transpose() << "\t";
+                    writeFile << rd_cc_.q_dot_virtual_.transpose() << "\t";
+                    writeFile << rd_cc_.q_virtual_.transpose() << "\t";
+
+                    writeFile << value_ << "\t" << stop_by_value_thres_;
+                
+                    writeFile << std::endl;
+
+                    time_write_pre_ = rd_cc_.control_time_us_;
+            }
+            
             time_inference_pre_ = rd_cc_.control_time_us_;
         }
 
@@ -588,11 +637,11 @@ void CustomController::computeSlow()
             torque_rl_(idx) = kp_(idx,idx) * (q_init_(idx) - q_noise_(idx)) - kv_(idx,idx)*q_vel_noise_(idx);
         }
         
-        if (rd_cc_.control_time_us_ < start_time_ + 0.2e6)
+        if (rd_cc_.control_time_us_ < start_time_ + 0.1e6)
         {
             for (int i = 0; i <MODEL_DOF; i++)
             {
-                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 0.2e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
+                torque_spline_(i) = DyrosMath::cubic(rd_cc_.control_time_us_, start_time_, start_time_ + 0.1e6, torque_init_(i), torque_rl_(i), 0.0, 0.0);
             }
             rd_.torque_desired = torque_spline_;
         }
@@ -601,48 +650,12 @@ void CustomController::computeSlow()
              rd_.torque_desired = torque_rl_;
         }
 
-        if (value_ < 50.0)
-        {
-            if (stop_by_value_thres_ == false)
-            {
-                stop_by_value_thres_ = true;
-                stop_start_time_ = rd_cc_.control_time_us_;
-                q_stop_ = q_noise_;
-                std::cout << "Stop by Value Function" << std::endl;
-            }
-        }
         if (stop_by_value_thres_)
         {
             rd_.torque_desired = kp_ * (q_stop_ - q_noise_) - kv_*q_vel_noise_;
         }
 
-        if (is_write_file_)
-        {
-            if ((rd_cc_.control_time_us_ - time_write_pre_)/1e6 > 1/240.0)
-            {
-                writeFile << (rd_cc_.control_time_us_ - start_time_)/1e6 << "\t";
-                writeFile << phase_ << "\t";
-                writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0) << "\t";
-
-                writeFile << rd_cc_.LF_FT.transpose() << "\t";
-                writeFile << rd_cc_.RF_FT.transpose() << "\t";
-                writeFile << rd_cc_.LF_CF_FT.transpose() << "\t";
-                writeFile << rd_cc_.RF_CF_FT.transpose() << "\t";
-
-                writeFile << rd_cc_.torque_desired.transpose()  << "\t";
-                writeFile << q_noise_.transpose() << "\t";
-                writeFile << q_dot_lpf_.transpose() << "\t";
-                writeFile << rd_cc_.q_dot_virtual_.transpose() << "\t";
-                writeFile << rd_cc_.q_virtual_.transpose() << "\t";
-
-                writeFile << value_ << "\t" << stop_by_value_thres_;
-               
-                writeFile << std::endl;
-
-                time_write_pre_ = rd_cc_.control_time_us_;
-            }
-        }
-    }    
+    }
     if (rd_cc_.tc_.mode == 8)
     {
         if (rd_cc_.tc_init)
@@ -680,7 +693,7 @@ void CustomController::computeSlow()
         }
         rd_.torque_desired = torque_spline_;
 
-    }
+    }  
 }
 
 void CustomController::computeFast()
