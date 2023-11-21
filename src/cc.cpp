@@ -571,7 +571,9 @@ void CustomController::computeSlow()
             {
                 ref_buffer_.block(num_cur_ref*i, 0, num_cur_ref, 1) = (q_init_.block(0,0,num_cur_ref,1) - state_mean_.block(3, 0, num_cur_ref, 1)).array() / state_var_.block(3, 0, num_cur_ref, 1).cwiseSqrt().array();
             }
-            ref_cb_ = q_init_.block(0,0,num_cur_ref,1);
+            // ref_cb_ = q_init_.block(0,0,num_cur_ref,1);
+            ref_cb_ << 0.0000000000000000e+00,	   0.0000000000000000e+00,	  -1.5372469468322831e-03,	   2.8803858953840859e-03,	  -1.3431389485518029e-03,	  -0.0000000000000000e+00,
+                	   0.0000000000000000e+00,	   0.0000000000000000e+00,	  -3.3189909542367241e-04,	  -1.0474393051893245e-05,	   3.4237348847556564e-04,	  -0.0000000000000000e+00;
         }
 
         processNoise();
