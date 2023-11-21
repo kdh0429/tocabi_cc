@@ -313,8 +313,11 @@ void CustomController::initVariable()
     value_hidden_layer2_.resize(num_hidden, 1);
     
     state_cur_.resize(num_cur_state, 1);
+    ref_cur_.resize(num_cur_ref, 1);
+    ref_cb_.resize(num_cur_ref, 1);
     state_.resize(num_state, 1);
     state_buffer_.resize(num_cur_state*num_state_skip*num_state_hist, 1);
+    ref_buffer_.resize(num_cur_ref*num_ref_skip*num_ref_hist, 1);
     state_mean_.resize(num_cur_state, 1);
     state_var_.resize(num_cur_state, 1);
 
@@ -449,19 +452,7 @@ void CustomController::processObservation()
         }
         data_idx++;
     }
-
-    float squat_duration = 1.7995;
-    phase_ = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, squat_duration) / squat_duration;
-
-    state_cur_(data_idx) = sin(2*M_PI*phase_);
-    data_idx++;
-    state_cur_(data_idx) = cos(2*M_PI*phase_);
-    data_idx++;
-
-    state_cur_(data_idx) = 0.2;//target_vel_x_;
-    data_idx++;
-
-    state_cur_(data_idx) = 0.0;//target_vel_y_;
+    state_cur_(data_idx) = 0.0;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = rd_cc_.LF_FT(2);
@@ -487,21 +478,29 @@ void CustomController::processObservation()
         state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(i), -1.0, 1.0);
         data_idx++;
     }
-    state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(num_actuator_action), 0.0, 1.0);
-    data_idx++;
     
     state_buffer_.block(0, 0, num_cur_state*(num_state_skip*num_state_hist-1),1) = state_buffer_.block(num_cur_state, 0, num_cur_state*(num_state_skip*num_state_hist-1),1);
     state_buffer_.block(num_cur_state*(num_state_skip*num_state_hist-1), 0, num_cur_state,1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
 
-    // Internal State First
+    ref_cur_ = ref_cb_;
+    ref_buffer_.block(0, 0, num_cur_ref*(num_ref_skip*num_ref_hist-1),1) = ref_buffer_.block(num_cur_ref, 0, num_cur_ref*(num_ref_skip*num_ref_hist-1),1);
+    ref_buffer_.block(num_cur_ref*(num_ref_skip*num_ref_hist-1), 0, num_cur_ref,1) = (ref_cur_ - state_mean_.block(3, 0, num_cur_ref, 1)).array() / state_var_.block(3, 0, num_cur_ref, 1).cwiseSqrt().array();
+
+    // Ref First
+    for (int i = 0; i < num_ref_hist; i++)
+    {
+        state_.block(num_cur_ref*i, 0, num_cur_ref, 1) = ref_buffer_.block(num_cur_ref*(num_ref_skip*(i+1)-1), 0, num_cur_ref, 1);
+    }
+
+    // Internal State Second
     for (int i = 0; i < num_state_hist; i++)
     {
-        state_.block(num_cur_internal_state*i, 0, num_cur_internal_state, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)-1), 0, num_cur_internal_state, 1);
+        state_.block(num_cur_ref*num_ref_hist + num_cur_internal_state*i, 0, num_cur_internal_state, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)-1), 0, num_cur_internal_state, 1);
     }
-    // Action History Second
+    // Action History Third
     for (int i = 0; i < num_state_hist-1; i++)
     {
-        state_.block(num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
+        state_.block(num_cur_ref*num_ref_hist + num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
     }
 
 }
@@ -568,6 +567,11 @@ void CustomController::computeSlow()
             {
                 state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
             }
+            for (int i = 0; i < num_ref_skip*num_ref_hist; i++) 
+            {
+                ref_buffer_.block(num_cur_ref*i, 0, num_cur_ref, 1) = (q_init_.block(0,0,num_cur_ref,1) - state_mean_.block(3, 0, num_cur_ref, 1)).array() / state_var_.block(3, 0, num_cur_ref, 1).cwiseSqrt().array();
+            }
+            ref_cb_ = q_init_.block(0,0,num_cur_ref,1);
         }
 
         processNoise();
@@ -577,8 +581,6 @@ void CustomController::computeSlow()
         {
             processObservation();
             feedforwardPolicy();
-            
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
 
             if (value_ < 50.0)
             {
@@ -594,8 +596,6 @@ void CustomController::computeSlow()
             if (is_write_file_)
             {
                     writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
-                    writeFile << phase_ << "\t";
-                    writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0) << "\t";
 
                     writeFile << rd_cc_.LF_FT.transpose() << "\t";
                     writeFile << rd_cc_.RF_FT.transpose() << "\t";
@@ -644,8 +644,6 @@ void CustomController::computeSlow()
         {
             rd_.torque_desired = kp_ * (q_stop_ - q_noise_) - kv_*q_vel_noise_;
         }
-
-
     }
 }
 

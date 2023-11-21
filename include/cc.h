@@ -30,13 +30,16 @@ public:
     void initVariable();
     Eigen::Vector3d mat2euler(Eigen::Matrix3d mat);
 
-    static const int num_action = 13;
+    static const int num_action = 12;
     static const int num_actuator_action = 12;
-    static const int num_cur_state = 50;
-    static const int num_cur_internal_state = 37;
+    static const int num_cur_state = 46;
+    static const int num_cur_ref = 12;
+    static const int num_cur_internal_state = 34;
     static const int num_state_skip = 2;
+    static const int num_ref_skip = 5;
     static const int num_state_hist = 5;
-    static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
+    static const int num_ref_hist = 5;
+    static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1) + num_cur_ref*num_ref_hist;
     static const int num_hidden = 256;
 
     Eigen::MatrixXd policy_net_w0_;
@@ -65,13 +68,14 @@ public:
     
     Eigen::MatrixXd state_;
     Eigen::MatrixXd state_cur_;
+    Eigen::MatrixXd ref_cur_;
+    Eigen::MatrixXd ref_cb_;
     Eigen::MatrixXd state_buffer_;
+    Eigen::MatrixXd ref_buffer_;
     Eigen::MatrixXd state_mean_;
     Eigen::MatrixXd state_var_;
 
     std::ofstream writeFile;
-
-    float phase_ = 0.0;
 
     bool is_on_robot_ = false;
     bool is_write_file_ = true;
@@ -96,7 +100,6 @@ public:
 
     double time_cur_;
     double time_pre_;
-    double action_dt_accumulate_ = 0.052;
 
     Eigen::Vector3d euler_angle_;
 
