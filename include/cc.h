@@ -5,6 +5,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
+#include <std_msgs/Float32MultiArray.h>
 
 class CustomController
 {
@@ -110,7 +111,9 @@ public:
     ros::NodeHandle nh_;
 
     void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
+    void refMotionCallback(const std_msgs::Float32MultiArray::ConstPtr& ref);
     ros::Subscriber joy_sub_;
+    ros::Subscriber ref_sub_;
 
     double target_vel_x_ = 0.0;
     double target_vel_y_ = 0.0;

@@ -22,6 +22,7 @@ CustomController::CustomController(RobotData &rd) : rd_(rd) //, wbc_(dc.wbc_)
     loadNetwork();
 
     joy_sub_ = nh_.subscribe<sensor_msgs::Joy>("joy", 10, &CustomController::joyCallback, this);
+    ref_sub_ = nh_.subscribe<std_msgs::Float32MultiArray>("rl_motion_reference", 10, &CustomController::refMotionCallback, this);
 }
 
 Eigen::VectorQd CustomController::getControl()
@@ -452,7 +453,7 @@ void CustomController::processObservation()
         }
         data_idx++;
     }
-    state_cur_(data_idx) = 0.0;//target_vel_x_;
+    state_cur_(data_idx) = target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = rd_cc_.LF_FT(2);
@@ -672,4 +673,13 @@ void CustomController::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
 {
     target_vel_x_ = DyrosMath::minmax_cut(0.5*joy->axes[1], -0.2, 0.5);
     target_vel_y_ = DyrosMath::minmax_cut(0.5*joy->axes[0], -0.2, 0.2);
+}
+
+void CustomController::refMotionCallback(const std_msgs::Float32MultiArray::ConstPtr& ref)
+{
+    for (int i=0; i<num_cur_ref; i++)
+    {
+        ref_cb_(i) = ref->data[i];
+    }
+    target_vel_x_ = ref->data[num_cur_ref];
 }
