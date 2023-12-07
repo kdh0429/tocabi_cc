@@ -13,7 +13,7 @@ def talker():
     pub = rospy.Publisher('rl_motion_reference', Float32MultiArray, queue_size=10)
     r = rospy.Rate(50)
 
-    ref_data = numpy.loadtxt('../motion/processed_data_tocabi_slow_vive_contact_with_force_ref.txt')
+    ref_data = numpy.loadtxt('../motion/processed_data_tocabi_vive_contact_with_force_ref_4.txt')
     ref_data_len = len(ref_data)
 
     num_cur_ref_joint = 12
@@ -22,7 +22,7 @@ def talker():
     a = Float32MultiArray()
 
     while not rospy.is_shutdown():
-        a.data = numpy.concatenate([ref_data[data_idx,1:1+num_cur_ref_joint],[ref_data[data_idx,36] / 1.5]]).tolist()
+        a.data = numpy.concatenate([ref_data[data_idx,1:1+num_cur_ref_joint],[ref_data[data_idx,36]]]).tolist()
 
         if (data_idx < ref_data_len-1):
             data_idx += 1
