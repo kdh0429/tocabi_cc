@@ -554,6 +554,11 @@ void CustomController::feedforwardPolicy()
 
     rl_action_ = action_net_w_ * hidden_layer2_ + action_net_b_;
 
+    for (int i = 0; i < num_actuator_action; i++)
+    {
+        rl_action_(i) = DyrosMath::minmax_cut(rl_action_(i), -1.0, 1.0);
+    }
+
     value_hidden_layer1_ = value_net_w0_ * state_ + value_net_b0_;
     for (int i = 0; i < num_hidden; i++) 
     {
@@ -627,7 +632,7 @@ void CustomController::computeSlow()
             {
                     writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
                     writeFile << phase_ << "\t";
-                    writeFile << DyrosMath::minmax_cut(rl_action_scaled_(num_action-1), 0.0, rl_action_scale_(num_action-1)) << "\t";
+                    writeFile << rl_action_scaled_.transpose() << "\t";
 
                     writeFile << rd_cc_.LF_FT.transpose() << "\t";
                     writeFile << rd_cc_.RF_FT.transpose() << "\t";
