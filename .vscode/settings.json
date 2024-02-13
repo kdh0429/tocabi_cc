@@ -11,5 +11,13 @@
         "/opt/ros/noetic/lib/python3/dist-packages",
         "",
         "/home/kim/raisim_ws/raisim_build/lib"
-    ]
+    ],
+    "files.associations": {
+        "iosfwd": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "vector": "cpp"
+    }
 }

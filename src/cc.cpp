@@ -21,6 +21,30 @@ CustomController::CustomController(RobotData &rd) : rd_(rd) //, wbc_(dc.wbc_)
     initVariable();
     loadNetwork();
 
+    // RLWBC
+    std::string resource_path = getLastDirectory(URDF_DIR) + "../urdf";
+    std::string urdf_name = "/dyros_tocabi.urdf";
+    std::string urdf_path = resource_path + urdf_name;
+    rd_wbc_.LoadModelData(urdf_path, true, false);
+    rd_wbc_.UpdateKinematics(rd_cc_.q_virtual_, rd_cc_.q_dot_virtual_, rd_cc_.q_ddot_virtual_);
+
+    int left_foot_id = 6;
+    int right_foot_id = 12;
+    rd_wbc_.AddContactConstraint(left_foot_id, DWBC::CONTACT_TYPE::CONTACT_6D, Vector3d(0.03, 0, -0.1585), Vector3d(0, 0, 1), 0.15, 0.075);
+    rd_wbc_.AddContactConstraint(right_foot_id, DWBC::CONTACT_TYPE::CONTACT_6D, Vector3d(0.03, 0, -0.1585), Vector3d(0, 0, 1), 0.15, 0.075);
+
+    rd_wbc_.AddTaskSpace(0, DWBC::LINK_MODE::TASK_LINK_6D, 0, Vector3d::Zero());
+
+    VectorXd tlim;
+    tlim.resize(rd_wbc_.model_dof_);
+    tlim << 333, 232, 263, 289, 222, 166,
+            333, 232, 263, 289, 222, 166,
+            303, 303, 303, 
+            64, 64, 64, 64, 23, 23, 10, 10,
+            10, 10,
+            64, 64, 64, 64, 23, 23, 10, 10;  
+    rd_wbc_.SetTorqueLimit(tlim);
+
     joy_sub_ = nh_.subscribe<sensor_msgs::Joy>("joy", 10, &CustomController::joyCallback, this);
 }
 
@@ -302,6 +326,8 @@ void CustomController::initVariable()
     hidden_layer1_.resize(num_hidden, 1);
     hidden_layer2_.resize(num_hidden, 1);
     rl_action_.resize(num_action, 1);
+    rl_action_scale_.resize(num_action, 1);
+    rl_action_scaled_.resize(num_action, 1);
 
     value_net_w0_.resize(num_hidden, num_state);
     value_net_b0_.resize(num_hidden, 1);
@@ -326,6 +352,10 @@ void CustomController::initVariable()
                     64, 64, 64, 64, 23, 23, 10, 10,
                     10, 10,
                     64, 64, 64, 64, 23, 23, 10, 10;  
+
+    rl_action_scale_ << 8.0, 8.0, 8.0, 20.0, 20.0, 20.0,
+                        200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
+                        1/250.0;
                     
     q_init_ << 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
                 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
@@ -577,8 +607,10 @@ void CustomController::computeSlow()
         {
             processObservation();
             feedforwardPolicy();
+
+            rl_action_scaled_ = (rl_action_.array()*rl_action_scale_.array()).col(0);
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_scaled_(num_action-1), 0.0, rl_action_scale_(num_action-1));
 
             if (value_ < 50.0)
             {
@@ -595,7 +627,7 @@ void CustomController::computeSlow()
             {
                     writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
                     writeFile << phase_ << "\t";
-                    writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0) << "\t";
+                    writeFile << DyrosMath::minmax_cut(rl_action_scaled_(num_action-1), 0.0, rl_action_scale_(num_action-1)) << "\t";
 
                     writeFile << rd_cc_.LF_FT.transpose() << "\t";
                     writeFile << rd_cc_.RF_FT.transpose() << "\t";
@@ -618,9 +650,54 @@ void CustomController::computeSlow()
             time_inference_pre_ = rd_cc_.control_time_us_;
         }
 
+        // Runs in 2000 Hz
+        int mocap_data_num = 3600;
+        int mocap_data_idx = phase_ * mocap_data_num;
+        if ((mocap_data_idx < 300) || (3300 < mocap_data_idx && mocap_data_idx < 3600) || (1500 < mocap_data_idx && mocap_data_idx < 2100))
+        {
+            left_foot_contact_ref_ = true;
+            right_foot_contact_ref_ = true;
+        }
+        else if (300 < mocap_data_idx && mocap_data_idx < 1500)
+        {
+            left_foot_contact_ref_ = false;
+            right_foot_contact_ref_ = true;
+        }
+        else
+        {
+            left_foot_contact_ref_ = true;
+            right_foot_contact_ref_ = false;
+        }
+        rd_wbc_.UpdateKinematics(rd_cc_.q_virtual_, rd_cc_.q_dot_virtual_, rd_cc_.q_ddot_virtual_);
+
+        rd_wbc_.ClearTaskSpace();
+        rd_wbc_.AddTaskSpace(0, DWBC::LINK_MODE::TASK_LINK_6D, 0, Vector3d::Zero());
+        
+        if (!right_foot_contact_ref_)
+        {
+            std::string desired_control_target = "R_AnkleRoll_Link";
+            rd_wbc_.AddTaskSpace(1, DWBC::LINK_MODE::TASK_LINK_6D, desired_control_target.c_str(), Vector3d::Zero());
+        }
+        if (!left_foot_contact_ref_)
+        {
+            std::string desired_control_target = "L_AnkleRoll_Link";
+            rd_wbc_.AddTaskSpace(1, DWBC::LINK_MODE::TASK_LINK_6D, desired_control_target.c_str(), Vector3d::Zero());
+        }
+        
+        rd_wbc_.SetContact(left_foot_contact_ref_, right_foot_contact_ref_);
+        rd_wbc_.CalcContactConstraint();
+        rd_wbc_.CalcTaskSpace();
+
+        rd_wbc_.SetTaskSpace(0, rl_action_scaled_.segment(0, 6));
+        if ((!left_foot_contact_ref_) || (!right_foot_contact_ref_))
+            rd_wbc_.SetTaskSpace(1, rl_action_scaled_.segment(6, 6));
+
+        rd_wbc_.CalcGravCompensation(); 
+        rd_wbc_.CalcTaskControlTorque(false);
+
         for (int i = 0; i < num_actuator_action; i++)
         {
-            torque_rl_(i) = DyrosMath::minmax_cut(rl_action_(i)*torque_bound_(i), -torque_bound_(i), torque_bound_(i));
+            torque_rl_(i) = DyrosMath::minmax_cut(rd_wbc_.torque_grav_(i) + rd_wbc_.torque_task_(i), -torque_bound_(i), torque_bound_(i));
         }
         for (int i = num_actuator_action; i < MODEL_DOF; i++)
         {

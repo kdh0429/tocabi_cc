@@ -5,6 +5,29 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
+#include <libdwbc/dwbc.h>
+
+#include <iostream>
+#include <string>
+
+#ifndef URDF_DIR
+#define URDF_DIR __FILE__
+#endif
+
+std::string getLastDirectory(const std::string& path) {
+    size_t found = path.find_last_of("/\\"); // '/' 또는 '\'를 찾음
+    if (found != std::string::npos) {
+        return path.substr(0, found + 1); // '/' 이전까지의 부분 문자열 반환
+    } else {
+        return ""; // '/'가 없는 경우 빈 문자열 반환
+    }
+}
+
+class RLWBC : public DWBC::RobotData
+{
+    int custum_data;
+    double control_time;
+};
 
 class CustomController
 {
@@ -21,6 +44,8 @@ public:
 
     RobotData &rd_;
     RobotData rd_cc_;
+
+    RLWBC rd_wbc_;
 
     //////////////////////////////////////////// Donghyeon RL /////////////////////////////////////////
     void loadNetwork();
@@ -48,6 +73,8 @@ public:
     Eigen::MatrixXd hidden_layer1_;
     Eigen::MatrixXd hidden_layer2_;
     Eigen::MatrixXd rl_action_;
+    Eigen::MatrixXd rl_action_scale_;
+    Eigen::VectorXd rl_action_scaled_;
 
     Eigen::MatrixXd value_net_w0_;
     Eigen::MatrixXd value_net_b0_;
@@ -99,6 +126,9 @@ public:
     double action_dt_accumulate_ = 0.0;
 
     Eigen::Vector3d euler_angle_;
+
+    bool left_foot_contact_ref_ = true;
+    bool right_foot_contact_ref_ = true;
 
     // float ft_left_init_ = 500.0;
     // float ft_right_init_ = 500.0;
