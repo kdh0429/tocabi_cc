@@ -355,6 +355,7 @@ void CustomController::initVariable()
 
     rl_action_scale_ << 5.0, 5.0, 5.0, 30.0, 30.0, 30.0,
                         40.0, 40.0, 40.0, 200.0, 200.0, 200.0,
+                        5.0, 5.0, 5.0,
                         1/250.0;
                     
     q_init_ << 0.0, 0.0, -0.24, 0.6, -0.36, 0.0,
@@ -488,7 +489,7 @@ void CustomController::processObservation()
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
 
-    state_cur_(data_idx) = 0.2;//target_vel_x_;
+    state_cur_(data_idx) = 0.0;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
@@ -614,8 +615,22 @@ void CustomController::computeSlow()
             feedforwardPolicy();
 
             rl_action_scaled_ = (rl_action_.array()*rl_action_scale_.array()).col(0);
-            
+
+            double dsp_prob = exp(rl_action_scaled_(num_actuator_action)) / (exp(num_actuator_action) + exp(num_actuator_action+1) + exp(num_actuator_action+2));
+            double ssp_l_prob = exp(rl_action_scaled_(num_actuator_action+1)) / (exp(num_actuator_action) + exp(num_actuator_action+1) + exp(num_actuator_action+2));
+            double ssp_r_prob = exp(rl_action_scaled_(num_actuator_action+2)) / (exp(num_actuator_action) + exp(num_actuator_action+1) + exp(num_actuator_action+2));
             action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_scaled_(num_action-1), 0.0, rl_action_scale_(num_action-1));
+
+            if (dsp_prob >= ssp_l_prob && dsp_prob >= ssp_r_prob) {
+                left_foot_contact_ref_ = true;
+                right_foot_contact_ref_ = true;
+            } else if (ssp_l_prob >= dsp_prob && ssp_l_prob >= ssp_r_prob) {
+                left_foot_contact_ref_ = true;
+                right_foot_contact_ref_ = false;
+            } else {
+                left_foot_contact_ref_ = false;
+                right_foot_contact_ref_ = true;
+            }
 
             if (value_ < 50.0)
             {
@@ -656,23 +671,23 @@ void CustomController::computeSlow()
         }
 
         // Runs in 2000 Hz
-        int mocap_data_num = 3600;
-        int mocap_data_idx = phase_ * mocap_data_num;
-        if ((mocap_data_idx < 300) || (3300 < mocap_data_idx && mocap_data_idx < 3600) || (1500 < mocap_data_idx && mocap_data_idx < 2100))
-        {
-            left_foot_contact_ref_ = true;
-            right_foot_contact_ref_ = true;
-        }
-        else if (300 < mocap_data_idx && mocap_data_idx < 1500)
-        {
-            left_foot_contact_ref_ = false;
-            right_foot_contact_ref_ = true;
-        }
-        else
-        {
-            left_foot_contact_ref_ = true;
-            right_foot_contact_ref_ = false;
-        }
+        // int mocap_data_num = 3600;
+        // int mocap_data_idx = phase_ * mocap_data_num;
+        // if ((mocap_data_idx < 300) || (3300 < mocap_data_idx && mocap_data_idx < 3600) || (1500 < mocap_data_idx && mocap_data_idx < 2100))
+        // {
+        //     left_foot_contact_ref_ = true;
+        //     right_foot_contact_ref_ = true;
+        // }
+        // else if (300 < mocap_data_idx && mocap_data_idx < 1500)
+        // {
+        //     left_foot_contact_ref_ = false;
+        //     right_foot_contact_ref_ = true;
+        // }
+        // else
+        // {
+        //     left_foot_contact_ref_ = true;
+        //     right_foot_contact_ref_ = false;
+        // }
         rd_wbc_.UpdateKinematics(rd_cc_.q_virtual_, rd_cc_.q_dot_virtual_, rd_cc_.q_ddot_virtual_);
 
         rd_wbc_.ClearTaskSpace();

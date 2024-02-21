@@ -55,7 +55,7 @@ public:
     void initVariable();
     Eigen::Vector3d mat2euler(Eigen::Matrix3d mat);
 
-    static const int num_action = 13;
+    static const int num_action = 16;
     static const int num_actuator_action = 12;
     static const int num_cur_state = 50;
     static const int num_cur_internal_state = 37;
