@@ -459,8 +459,8 @@ void CustomController::processObservation()
     data_idx++;
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
-
-    state_cur_(data_idx) = 1.2;//target_vel_x_;
+    
+    state_cur_(data_idx) = 2.0;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
@@ -579,7 +579,7 @@ void CustomController::computeSlow()
             processObservation();
             feedforwardPolicy();
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*2/250.0, 0.0, 2/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*6/250.0, 0.0, 6/250.0);
 
             if (value_ < 50.0)
             {
