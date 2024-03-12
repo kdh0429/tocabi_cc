@@ -460,7 +460,7 @@ void CustomController::processObservation()
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
     
-    state_cur_(data_idx) = 0.8;//target_vel_x_;
+    state_cur_(data_idx) = 0.4;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
