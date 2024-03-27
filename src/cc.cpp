@@ -42,20 +42,20 @@ void CustomController::loadNetwork()
         cur_path = "/home/dyros/catkin_ws/src/tocabi_cc/";
     }
     std::ifstream file[14];
-    file[0].open(cur_path+"weight/mlp_extractor_policy_net_0_weight.txt", std::ios::in);
-    file[1].open(cur_path+"weight/mlp_extractor_policy_net_0_bias.txt", std::ios::in);
-    file[2].open(cur_path+"weight/mlp_extractor_policy_net_2_weight.txt", std::ios::in);
-    file[3].open(cur_path+"weight/mlp_extractor_policy_net_2_bias.txt", std::ios::in);
-    file[4].open(cur_path+"weight/action_net_weight.txt", std::ios::in);
-    file[5].open(cur_path+"weight/action_net_bias.txt", std::ios::in);
+    file[0].open(cur_path+"weight/a2c_network_actor_mlp_0_weight.txt", std::ios::in);
+    file[1].open(cur_path+"weight/a2c_network_actor_mlp_0_bias.txt", std::ios::in);
+    file[2].open(cur_path+"weight/a2c_network_actor_mlp_2_weight.txt", std::ios::in);
+    file[3].open(cur_path+"weight/a2c_network_actor_mlp_2_bias.txt", std::ios::in);
+    file[4].open(cur_path+"weight/a2c_network_mu_weight.txt", std::ios::in);
+    file[5].open(cur_path+"weight/a2c_network_mu_bias.txt", std::ios::in);
     file[6].open(cur_path+"weight/obs_mean_fixed.txt", std::ios::in);
     file[7].open(cur_path+"weight/obs_variance_fixed.txt", std::ios::in);
-    file[8].open(cur_path+"weight/mlp_extractor_value_net_0_weight.txt", std::ios::in);
-    file[9].open(cur_path+"weight/mlp_extractor_value_net_0_bias.txt", std::ios::in);
-    file[10].open(cur_path+"weight/mlp_extractor_value_net_2_weight.txt", std::ios::in);
-    file[11].open(cur_path+"weight/mlp_extractor_value_net_2_bias.txt", std::ios::in);
-    file[12].open(cur_path+"weight/value_net_weight.txt", std::ios::in);
-    file[13].open(cur_path+"weight/value_net_bias.txt", std::ios::in);
+    file[8].open(cur_path+"weight/a2c_network_critic_mlp_0_weight.txt", std::ios::in);
+    file[9].open(cur_path+"weight/a2c_network_critic_mlp_0_bias.txt", std::ios::in);
+    file[10].open(cur_path+"weight/a2c_network_critic_mlp_2_weight.txt", std::ios::in);
+    file[11].open(cur_path+"weight/a2c_network_critic_mlp_2_bias.txt", std::ios::in);
+    file[12].open(cur_path+"weight/a2c_network_value_weight.txt", std::ios::in);
+    file[13].open(cur_path+"weight/a2c_network_value_bias.txt", std::ios::in);
 
 
     if(!file[0].is_open())
@@ -342,12 +342,14 @@ void CustomController::initVariable()
                         400.0, 1000.0, 400.0, 400.0, 400.0, 400.0, 100.0, 100.0,
                         100.0, 100.0,
                         400.0, 1000.0, 400.0, 400.0, 400.0, 400.0, 100.0, 100.0;
+    kp_.diagonal() /= 9.0;
     kv_.diagonal() << 15.0, 50.0, 20.0, 25.0, 24.0, 24.0,
                         15.0, 50.0, 20.0, 25.0, 24.0, 24.0,
                         200.0, 100.0, 100.0,
                         10.0, 28.0, 10.0, 10.0, 10.0, 10.0, 3.0, 3.0,
                         2.0, 2.0,
                         10.0, 28.0, 10.0, 10.0, 10.0, 10.0, 3.0, 3.0;
+    kv_.diagonal() /= 3.0;
 }
 
 Eigen::Vector3d CustomController::mat2euler(Eigen::Matrix3d mat)
@@ -445,7 +447,7 @@ void CustomController::processObservation()
         }
         else
         {
-            state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6); //q_vel_noise_(i);
+            state_cur_(data_idx) = q_vel_noise_(i); //rd_cc_.q_dot_virtual_(i+6);
         }
         data_idx++;
     }
@@ -457,30 +459,36 @@ void CustomController::processObservation()
     data_idx++;
     state_cur_(data_idx) = cos(2*M_PI*phase_);
     data_idx++;
-
-    state_cur_(data_idx) = 0.2;//target_vel_x_;
+    
+    state_cur_(data_idx) = 0.0;//target_vel_x_;
     data_idx++;
 
     state_cur_(data_idx) = 0.0;//target_vel_y_;
     data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.LF_FT(2);
-    data_idx++;
+    for (int i=0; i<6; i++)
+    {
+        state_cur_(data_idx) = rd_cc_.q_dot_virtual_(i);
+        data_idx++;
+    }
 
-    state_cur_(data_idx) = rd_cc_.RF_FT(2);
-    data_idx++;
+    // state_cur_(data_idx) = -rd_cc_.LF_FT(2);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.LF_FT(3);
-    data_idx++;
+    // state_cur_(data_idx) = -rd_cc_.RF_FT(2);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.RF_FT(3);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.LF_FT(3);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.LF_FT(4);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.RF_FT(3);
+    // data_idx++;
 
-    state_cur_(data_idx) = rd_cc_.RF_FT(4);
-    data_idx++;
+    // state_cur_(data_idx) = rd_cc_.LF_FT(4);
+    // data_idx++;
+
+    // state_cur_(data_idx) = rd_cc_.RF_FT(4);
+    // data_idx++;
 
     for (int i = 0; i <num_actuator_action; i++) 
     {
@@ -555,8 +563,6 @@ void CustomController::computeSlow()
             time_cur_ = start_time_ / 1e6;
             time_pre_ = time_cur_ - 0.005;
             time_inference_pre_ = rd_cc_.control_time_us_ - (1/249.9)*1e6;
-            // ft_left_init_ = abs(rd_cc_.LF_FT(2));
-            // ft_right_init_ = abs(rd_cc_.RF_FT(2));
 
             rd_.tc_init = false;
             std::cout<<"cc mode 7"<<std::endl;
@@ -566,7 +572,8 @@ void CustomController::computeSlow()
             processObservation();
             for (int i = 0; i < num_state_skip*num_state_hist; i++) 
             {
-                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
+                // state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
+                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1).setZero();
             }
         }
 
@@ -578,7 +585,7 @@ void CustomController::computeSlow()
             processObservation();
             feedforwardPolicy();
             
-            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0);
+            action_dt_accumulate_ += DyrosMath::minmax_cut(rl_action_(num_action-1)*5/250.0, 0.0, 5/250.0);
 
             if (value_ < 50.0)
             {
@@ -595,7 +602,7 @@ void CustomController::computeSlow()
             {
                     writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
                     writeFile << phase_ << "\t";
-                    writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/250.0, 0.0, 1/250.0) << "\t";
+                    writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/100.0, 0.0, 1/100.0) << "\t";
 
                     writeFile << rd_cc_.LF_FT.transpose() << "\t";
                     writeFile << rd_cc_.RF_FT.transpose() << "\t";

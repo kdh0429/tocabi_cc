@@ -34,7 +34,7 @@ public:
     static const int num_actuator_action = 12;
     static const int num_cur_state = 50;
     static const int num_cur_internal_state = 37;
-    static const int num_state_skip = 2;
+    static const int num_state_skip = 3;
     static const int num_state_hist = 5;
     static const int num_state = num_cur_internal_state*num_state_hist+num_action*(num_state_hist-1);
     static const int num_hidden = 256;
@@ -99,9 +99,6 @@ public:
     double action_dt_accumulate_ = 0.0;
 
     Eigen::Vector3d euler_angle_;
-
-    // float ft_left_init_ = 500.0;
-    // float ft_right_init_ = 500.0;
 
     // Joystick
     ros::NodeHandle nh_;
