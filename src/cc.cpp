@@ -35,13 +35,13 @@ void CustomController::loadNetwork()
     rl_action_.setZero();
 
 
-    string cur_path = "/home/kim/tocabi_ws/src/tocabi_cc/";
+    string cur_path = "/home/dyros/tocabi_ws/src/tocabi_cc/";
 
     if (is_on_robot_)
     {
         cur_path = "/home/dyros/catkin_ws/src/tocabi_cc/";
     }
-    std::ifstream file[14];
+    std::ifstream file[15];
     file[0].open(cur_path+"weight/a2c_network_actor_mlp_0_weight.txt", std::ios::in);
     file[1].open(cur_path+"weight/a2c_network_actor_mlp_0_bias.txt", std::ios::in);
     file[2].open(cur_path+"weight/a2c_network_actor_mlp_2_weight.txt", std::ios::in);
@@ -56,6 +56,7 @@ void CustomController::loadNetwork()
     file[11].open(cur_path+"weight/a2c_network_critic_mlp_2_bias.txt", std::ios::in);
     file[12].open(cur_path+"weight/a2c_network_value_weight.txt", std::ios::in);
     file[13].open(cur_path+"weight/a2c_network_value_bias.txt", std::ios::in);
+    file[14].open(cur_path+"weight/processed_data_tocabi_walk.txt", std::ios::in);
 
 
     if(!file[0].is_open())
@@ -289,6 +290,22 @@ void CustomController::loadNetwork()
             }
         }
     }
+    row = 0;
+    col = 0;
+    while(!file[14].eof() && row != mocap_data.rows())
+    {
+        file[14] >> temp;
+        if(temp != '\n')
+        {
+            mocap_data(row, col) = temp;
+            col ++;
+            if (col == mocap_data.cols())
+            {
+                col = 0;
+                row ++;
+            }
+        }
+    }
 }
 
 void CustomController::initVariable()
@@ -302,6 +319,8 @@ void CustomController::initVariable()
     hidden_layer1_.resize(num_hidden, 1);
     hidden_layer2_.resize(num_hidden, 1);
     rl_action_.resize(num_action, 1);
+    rl_action_pre_.resize(num_action, 1);
+    mocap_data.resize(3600,36);
 
     value_net_w0_.resize(num_hidden, num_state);
     value_net_b0_.resize(num_hidden, 1);
@@ -572,8 +591,8 @@ void CustomController::computeSlow()
             processObservation();
             for (int i = 0; i < num_state_skip*num_state_hist; i++) 
             {
-                // state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
-                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1).setZero();
+                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
+                // state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1).setZero();
             }
         }
 
@@ -600,6 +619,7 @@ void CustomController::computeSlow()
 
             if (is_write_file_)
             {
+                    double reward = computeReward();
                     writeFile << (rd_cc_.control_time_us_ - time_inference_pre_)/1e6 << "\t";
                     writeFile << phase_ << "\t";
                     writeFile << DyrosMath::minmax_cut(rl_action_(num_action-1)*1/100.0, 0.0, 1/100.0) << "\t";
@@ -615,7 +635,7 @@ void CustomController::computeSlow()
                     writeFile << rd_cc_.q_dot_virtual_.transpose() << "\t";
                     writeFile << rd_cc_.q_virtual_.transpose() << "\t";
 
-                    writeFile << value_ << "\t" << stop_by_value_thres_;
+                    writeFile << value_ << "\t" << stop_by_value_thres_ <<"\t" << reward;
                 
                     writeFile << std::endl;
 
@@ -673,6 +693,92 @@ void CustomController::computePlanner()
 void CustomController::copyRobotData(RobotData &rd_l)
 {
     std::memcpy(&rd_cc_, &rd_l, sizeof(RobotData));
+}
+
+double CustomController::computeReward()
+{
+    Eigen::Quaterniond quat_cur;
+    quat_cur.x() = rd_cc_.q_virtual_(3);
+    quat_cur.y() = rd_cc_.q_virtual_(4);
+    quat_cur.z() = rd_cc_.q_virtual_(5);
+    quat_cur.w() = rd_cc_.q_virtual_(MODEL_DOF_QVIRTUAL-1);    
+    double angle = quat_cur.angularDistance(Eigen::Quaterniond::Identity()) * 2;
+    double mimic_body_orientation_reward = 0.3 * std::exp(-13.2 * std::abs(angle)); 
+
+    
+    Eigen::Matrix<double, MODEL_DOF, 1> joint_position_target;
+    Eigen::Matrix<double, 2, 1> force_target;
+    double cur_time = std::fmod((rd_cc_.control_time_us_-start_time_)/1e6 + action_dt_accumulate_, 1.7995);
+    int mocap_data_idx = int(cur_time / 0.0005) % 3600;
+    int next_idx = mocap_data_idx + 1;
+    for (int i = 0; i <MODEL_DOF; i++)
+    {
+        joint_position_target(i) = DyrosMath::cubic(cur_time, mocap_data(mocap_data_idx,0), mocap_data(next_idx,0), 
+                                        mocap_data(mocap_data_idx,i+1), mocap_data(next_idx,i+1), 0.0, 0.0);
+    }
+    for (int i = 0; i < 2; i++)
+    {
+        force_target(i) = DyrosMath::cubic(cur_time, mocap_data(mocap_data_idx,0), mocap_data(next_idx,0), 
+                                        mocap_data(mocap_data_idx,i+33), mocap_data(next_idx,i+33), 0.0, 0.0);
+    }
+    double qpos_regulation = 0.35 * std::exp(-2.0 * pow((joint_position_target - q_noise_).norm(),2));
+    double qvel_regulation = 0.05 * std::exp(-0.01 * pow((q_vel_noise_).norm(),2));
+
+    double contact_force_diff_regulation = 0.2 * std::exp(-0.01*((rd_cc_.LF_FT-LF_FT_pre_).norm() + (rd_cc_.RF_FT-LF_FT_pre_).norm()));
+    double torque_regulation = 0.05 * std::exp(-0.01 * (rl_action_.block(0,0,12,1)*333).norm());
+    double torque_diff_regulation = 0.6 * std::exp(-0.01 * ((rl_action_.block(0,0,12,1)-rl_action_pre_.block(0,0,12,1))*333).norm());
+    double qacc_regulation = 0.05 * std::exp(-20.0*pow((q_vel_noise_-q_vel_noise_pre_).norm(),2));
+    Eigen::Vector2d target_vel;
+    Eigen::Vector2d cur_vel;
+    target_vel << 0.4, 0.0;
+    cur_vel << rd_cc_.q_dot_virtual_(0), rd_cc_.q_dot_virtual_(1);
+    double body_vel_reward = 0.3 * std::exp(-3.0 * pow((target_vel - cur_vel).norm(),2));
+    
+    double foot_contact_reward = 0.0;
+    if ((3300 <= mocap_data_idx) & (mocap_data_idx < 3600) || (mocap_data_idx < 300) || ((1500 <= mocap_data_idx) & ( mocap_data_idx < 2100)))
+    {
+        if (abs(rd_cc_.LF_FT(2)) > 100 && abs(rd_cc_.RF_FT(2)) > 100)
+            foot_contact_reward = 0.2;
+    }
+    else if ((300 <= mocap_data_idx) & (mocap_data_idx < 1500))
+    {
+        if (abs(rd_cc_.LF_FT(2)) < 100 && abs(rd_cc_.RF_FT(2)) > 100)
+            foot_contact_reward = 0.2;
+    }    
+    else if ((2100 <= mocap_data_idx) & (mocap_data_idx < 3300))
+    {
+        if (abs(rd_cc_.LF_FT(2)) > 100 && abs(rd_cc_.RF_FT(2)) < 100)
+            foot_contact_reward = 0.2;
+    }
+
+    double force_thres_penalty = 0.0;
+    if (abs(rd_cc_.LF_FT(2)) > 1.4*9.81*100 || abs(rd_cc_.RF_FT(2)) > 1.4*9.81*100)
+    {
+        force_thres_penalty = -0.2;
+    }
+    double contact_force_penalty = 0.1;
+    if (abs(rd_cc_.LF_FT(2)) > 1.4*9.81*100 || abs(rd_cc_.RF_FT(2)) > 1.4*9.81*100)
+    {
+        contact_force_penalty = 0.1*(1-std::exp(-0.007*((min(abs(rd_cc_.LF_FT(2)) - 1.4*9.81*100, 0.0)) \
+                                                            + (min(abs(rd_cc_.RF_FT(2)) - 1.4*9.81*100, 0.0)))));
+    }
+    double force_diff_thres_penalty = 0.0;
+    if (abs(rd_cc_.LF_FT(2)-LF_FT_pre_(2)) > 0.2*9.81*100 || abs(rd_cc_.RF_FT(2)-RF_FT_pre_(2)) > 1.4*9.81*100)
+    {
+        force_diff_thres_penalty = -0.05;
+    }
+    double force_ref_reward = 0.1*std::exp(-0.001*(abs(rd_cc_.LF_FT(2)+force_target(0)))) + 0.1*std::exp(-0.001*(abs(rd_cc_.RF_FT(2)+force_target(1))));
+    
+    LF_FT_pre_ = rd_cc_.LF_FT;
+    RF_FT_pre_ = rd_cc_.RF_FT;
+    rl_action_pre_ = rl_action_;
+    q_vel_noise_pre_ = q_vel_noise_;
+
+    double total_reward = mimic_body_orientation_reward + qpos_regulation + qvel_regulation + contact_force_penalty + 
+        torque_regulation + torque_diff_regulation + body_vel_reward + qacc_regulation + foot_contact_reward + 
+        contact_force_diff_regulation  + force_thres_penalty + force_diff_thres_penalty + force_ref_reward;
+
+    return total_reward;
 }
 
 void CustomController::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
