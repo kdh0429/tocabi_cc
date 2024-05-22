@@ -509,28 +509,27 @@ void CustomController::processObservation()
     // state_cur_(data_idx) = rd_cc_.RF_FT(4);
     // data_idx++;
 
-    // for (int i = 0; i <num_actuator_action; i++) 
-    // {
-    //     state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(i), -1.0, 1.0);
-    //     data_idx++;
-    // }
-    // state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(num_actuator_action), 0.0, 1.0);
-    // data_idx++;
+    for (int i = 0; i <num_actuator_action; i++) 
+    {
+        state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(i), -1.0, 1.0);
+        data_idx++;
+    }
+    state_cur_(data_idx) = DyrosMath::minmax_cut(rl_action_(num_actuator_action), 0.0, 1.0);
+    data_idx++;
     
-    // state_buffer_.block(0, 0, num_cur_state*(num_state_skip*num_state_hist-1),1) = state_buffer_.block(num_cur_state, 0, num_cur_state*(num_state_skip*num_state_hist-1),1);
-    // state_buffer_.block(num_cur_state*(num_state_skip*num_state_hist-1), 0, num_cur_state,1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
+    state_buffer_.block(0, 0, num_cur_state*(num_state_skip*num_state_hist-1),1) = state_buffer_.block(num_cur_state, 0, num_cur_state*(num_state_skip*num_state_hist-1),1);
+    state_buffer_.block(num_cur_state*(num_state_skip*num_state_hist-1), 0, num_cur_state,1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
 
-    // // Internal State First
-    // for (int i = 0; i < num_state_hist; i++)
-    // {
-    //     state_.block(num_cur_internal_state*i, 0, num_cur_internal_state, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)-1), 0, num_cur_internal_state, 1);
-    // }
-    // // Action History Second
-    // for (int i = 0; i < num_state_hist-1; i++)
-    // {
-    //     state_.block(num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
-    // }
-    state_  = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();;
+    // Internal State First
+    for (int i = 0; i < num_state_hist; i++)
+    {
+        state_.block(num_cur_internal_state*i, 0, num_cur_internal_state, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)-1), 0, num_cur_internal_state, 1);
+    }
+    // Action History Second
+    for (int i = 0; i < num_state_hist-1; i++)
+    {
+        state_.block(num_state_hist*num_cur_internal_state + num_action*i, 0, num_action, 1) = state_buffer_.block(num_cur_state*(num_state_skip*(i+1)) + num_cur_internal_state, 0, num_action, 1);
+    }
 
 }
 
@@ -590,11 +589,11 @@ void CustomController::computeSlow()
 
             processNoise();
             processObservation();
-            // for (int i = 0; i < num_state_skip*num_state_hist; i++) 
-            // {
-            //     state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
-            //     // state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1).setZero();
-            // }
+            for (int i = 0; i < num_state_skip*num_state_hist; i++) 
+            {
+                state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1) = (state_cur_ - state_mean_).array() / state_var_.cwiseSqrt().array();
+                // state_buffer_.block(num_cur_state*i, 0, num_cur_state, 1).setZero();
+            }
         }
 
         processNoise();
