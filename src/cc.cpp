@@ -485,17 +485,17 @@ void CustomController::processObservation()
     state_cur_(data_idx) = 0.0;//target_vel_y_;
     data_idx++;
 
-    // for (int i=0; i<6; i++)
-    // {
-    //     state_cur_(data_idx) = rd_cc_.q_dot_virtual_(i);
-    //     data_idx++;
-    // }
+    for (int i=0; i<6; i++)
+    {
+        state_cur_(data_idx) = rd_cc_.q_dot_virtual_(i);
+        data_idx++;
+    }
 
-    // state_cur_(data_idx) = -rd_cc_.LF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = -rd_cc_.LF_FT(2);
+    data_idx++;
 
-    // state_cur_(data_idx) = -rd_cc_.RF_FT(2);
-    // data_idx++;
+    state_cur_(data_idx) = -rd_cc_.RF_FT(2);
+    data_idx++;
 
     // state_cur_(data_idx) = rd_cc_.LF_FT(3);
     // data_idx++;
